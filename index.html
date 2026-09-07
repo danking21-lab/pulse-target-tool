@@ -71,17 +71,16 @@
   <div class="sub" id="asof">loading&hellip;</div>
 
   <a class="pulse-link" href="https://rapid.playtika.com/pulse/main" target="_blank" rel="noopener" id="pulseOpenLink">
-    Open Live Pulse Dashboard in new tab &nearr;
+    Step 1: Open Live Pulse Dashboard in a new tab &nearr;
   </a>
 
-  <div class="card" id="pulseFrameCard">
-    <div class="label" style="margin-bottom:8px;">Live Pulse (log in here whenever needed)</div>
-    <iframe id="pulseFrame" src="https://rapid.playtika.com/pulse/main"
-      style="width:100%; height:480px; border:1px solid #223041; border-radius:12px; background:#0e141b;"
-      referrerpolicy="origin"></iframe>
-    <div class="muted" id="frameHint" style="margin-top:8px;">
-      If this stays blank, the site blocks embedding &mdash; use the link above instead.
+  <div class="card">
+    <div class="label" style="margin-bottom:8px;">Step 2: net revenue so far today ($) &mdash; copy from the Pulse tab</div>
+    <input type="number" inputmode="decimal" id="manualRevenueInput" placeholder="e.g. 482000">
+    <div class="btnrow">
+      <button class="btn-primary" id="saveManualRevenue">Use this number</button>
     </div>
+    <div class="muted" id="manualAsOf" style="margin-top:6px;">&nbsp;</div>
   </div>
 
   <div class="card">
@@ -131,30 +130,11 @@
 
   <div class="card">
     <details id="tokenBox">
-      <summary>Playtika session token (tap to update)</summary>
-      <label class="small">Paste a fresh Bearer token from DevTools → Network → dashboards_facade → Headers → Authorization (just the token, "Bearer " prefix optional). It expires roughly every 60&ndash;70 minutes.</label>
+      <summary>Advanced (optional): automatic pull instead of manual entry</summary>
+      <label class="small" style="margin-top:0;">Not required &mdash; the manual field above works on its own. This is only for anyone who wants the number to fill in by itself using a Playtika session token (expires every ~60&ndash;70 min, needs re-collecting each time).</label>
+      <label class="small">Paste a fresh Bearer token from DevTools → Network → dashboards_facade → Headers → Authorization:</label>
       <textarea id="tokenInput" placeholder="eyJ0eXAiOiJKV1Qi..."></textarea>
       <div class="btnrow"><button class="btn-primary" id="saveToken">Save token</button></div>
-    </details>
-  </div>
-
-  <div class="card">
-    <details>
-      <summary>One-click token refresh (bookmarklet)</summary>
-      <label class="small">
-        Install once: drag the button below to your bookmarks bar (desktop),
-        or on mobile: bookmark any page, edit that bookmark, and paste the
-        code from the box into its URL field instead. Then, whenever your
-        token expires: open <code>rapid.playtika.com/pulse/main</code>,
-        make sure you're logged in and it's showing live data, tap the
-        bookmarklet &mdash; it grabs your current session token and opens
-        this tool with fresh data, no DevTools needed.
-      </label>
-      <p style="text-align:center">
-        <a id="bookmarkletLink" href="#" style="display:inline-block;padding:10px 16px;background:#2563eb;color:#fff;border-radius:10px;font-weight:600;text-decoration:none;">Get Pulse Token</a>
-      </p>
-      <label class="small">Or copy this code (for mobile bookmark editing):</label>
-      <textarea id="bookmarkletCode" readonly onclick="this.select()"></textarea>
     </details>
   </div>
 
@@ -175,6 +155,15 @@ function getToken() {
 function getTarget() {
   const v = localStorage.getItem('pulse_target');
   return v ? Number(v) : 0;
+}
+function getManual() {
+  const net = Number(localStorage.getItem('pulse_manual_net') || 0);
+  const ts = Number(localStorage.getItem('pulse_manual_ts') || 0);
+  return { net, ts };
+}
+function saveManual(net) {
+  localStorage.setItem('pulse_manual_net', String(net));
+  localStorage.setItem('pulse_manual_ts', String(Date.now()));
 }
 
 function todayWindowUtc() {
@@ -218,14 +207,19 @@ async function fetchNetRevenueToday() {
   return net;
 }
 
-function render(net) {
+function render(net, asOfDate) {
   const { start, end, now } = todayWindowUtc();
   const target = getTarget();
+  // "asOfDate" is when `net` was actually observed (manual entry time, or
+  // "now" for a live fetch). Pace-to-date is computed against that moment;
+  // hours remaining / required rate use the real current time so they keep
+  // counting down even between manual entries.
+  const asOf = asOfDate || now;
 
-  const hoursElapsed = Math.max((now - start) / 3600000, 0.0001);
+  const hoursElapsedAtEntry = Math.max((asOf - start) / 3600000, 0.0001);
   const hoursRemaining = Math.max((end - now) / 3600000, 0);
   const remaining = Math.max(target - net, 0);
-  const currentPace = net / hoursElapsed;
+  const currentPace = net / hoursElapsedAtEntry;
   const requiredRate = hoursRemaining > 0.0001 ? remaining / hoursRemaining : null;
   const projected = net + currentPace * hoursRemaining;
   const pct = target > 0 ? (net / target * 100) : 0;
@@ -257,7 +251,11 @@ function render(net) {
   pill.textContent = label;
   pill.className = 'pill ' + status;
 
-  document.getElementById('asof').textContent = 'as of ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone:'UTC'}) + ' UTC';
+  document.getElementById('asof').textContent = 'calc as of ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone:'UTC'}) + ' UTC \u00b7 revenue as of ' + asOf.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone:'UTC'}) + ' UTC';
+  const staleMin = Math.round((now - asOf) / 60000);
+  document.getElementById('manualAsOf').textContent = staleMin <= 0
+    ? 'Just entered.'
+    : 'Entered ' + staleMin + ' min ago' + (staleMin > 20 ? ' \u2014 refresh from Pulse for accuracy' : '.');
   document.getElementById('windowLine').textContent =
     'Calc day: ' + start.toLocaleString([], {weekday:'short', hour:'2-digit', minute:'2-digit', timeZone:'UTC'}) +
     ' \u2192 ' + end.toLocaleString([], {weekday:'short', hour:'2-digit', minute:'2-digit', timeZone:'UTC'}) + ' UTC';
@@ -267,16 +265,23 @@ function render(net) {
   }
 }
 
-async function refresh() {
+function renderFromManual() {
+  const { net, ts } = getManual();
+  document.getElementById('errLine').textContent = '';
+  render(net, ts ? new Date(ts) : new Date());
+}
+
+// Optional automatic path (advanced / experimental) -- only used if the
+// user explicitly pastes/collects a token. Off by default.
+async function refreshAuto() {
   try {
     const net = await fetchNetRevenueToday();
     document.getElementById('errLine').textContent = '';
-    render(net);
+    saveManual(net); // treat a successful auto-fetch as if it were a manual entry, "now"
+    document.getElementById('manualRevenueInput').value = Math.round(net);
+    render(net, new Date());
   } catch (e) {
     document.getElementById('errLine').textContent = e.message;
-    const pill = document.getElementById('statusPill');
-    pill.textContent = 'NEEDS TOKEN';
-    pill.className = 'pill expired';
     if (/token/i.test(e.message)) document.getElementById('tokenBox').open = true;
   }
 }
@@ -284,7 +289,13 @@ async function refresh() {
 document.getElementById('saveTarget').addEventListener('click', () => {
   const val = Number(document.getElementById('targetInput').value || 0);
   localStorage.setItem('pulse_target', val);
-  refresh();
+  renderFromManual();
+});
+
+document.getElementById('saveManualRevenue').addEventListener('click', () => {
+  const val = Number(document.getElementById('manualRevenueInput').value || 0);
+  saveManual(val);
+  renderFromManual();
 });
 
 document.getElementById('saveToken').addEventListener('click', () => {
@@ -293,64 +304,15 @@ document.getElementById('saveToken').addEventListener('click', () => {
     localStorage.setItem('pulse_token', val);
     document.getElementById('tokenInput').value = '';
     document.getElementById('tokenBox').open = false;
-    refresh();
+    refreshAuto();
   }
 });
 
-document.getElementById('refreshBtn').addEventListener('click', refresh);
-
-// Build the bookmarklet: when clicked while on rapid.playtika.com, it scans
-// localStorage/sessionStorage for the MSAL access token cache entry, picks
-// the newest AccessToken (preferring our known client id), and opens this
-// tool with #token=... so the page above auto-saves it. No DevTools needed.
-(function buildBookmarklet() {
-  const toolUrl = location.origin + location.pathname;
-  const KNOWN_CLIENT_ID = '8e416d24-af97-4350-948b-664b88ec082c';
-  const fn = function () {
-    try {
-      var stores = [window.localStorage, window.sessionStorage];
-      var candidates = [];
-      for (var s = 0; s < stores.length; s++) {
-        var store = stores[s];
-        if (!store) continue;
-        for (var i = 0; i < store.length; i++) {
-          var key = store.key(i);
-          var raw = store.getItem(key);
-          if (!raw || raw.indexOf('AccessToken') === -1) continue;
-          try {
-            var obj = JSON.parse(raw);
-            if (obj && obj.credentialType === 'AccessToken' && obj.secret) {
-              candidates.push(obj);
-            }
-          } catch (e) {}
-        }
-      }
-      if (!candidates.length) {
-        alert('No Playtika access token found on this page. Make sure you are logged in at rapid.playtika.com/pulse/main and the dashboard is showing live data, then try again.');
-        return;
-      }
-      candidates.sort(function (a, b) {
-        var pref = function (c) { return c.clientId === __CLIENT_ID__ ? 1 : 0; };
-        var pd = pref(b) - pref(a);
-        if (pd !== 0) return pd;
-        return (Number(b.expiresOn) || 0) - (Number(a.expiresOn) || 0);
-      });
-      var token = candidates[0].secret;
-      window.open(__TOOL_URL__ + '#token=' + encodeURIComponent(token), '_blank');
-    } catch (e) {
-      alert('Bookmarklet error: ' + e.message);
-    }
-  };
-  const code = fn.toString()
-    .replace('__CLIENT_ID__', JSON.stringify(KNOWN_CLIENT_ID))
-    .replace('__TOOL_URL__', JSON.stringify(toolUrl));
-  const bookmarklet = 'javascript:(' + code + ')();';
-  document.getElementById('bookmarkletLink').setAttribute('href', bookmarklet);
-  document.getElementById('bookmarkletCode').value = bookmarklet;
-})();
+document.getElementById('refreshBtn').addEventListener('click', refreshAuto);
 
 // If a bookmarklet opened us with #token=..., grab it, save it, and
 // clean the URL bar so the token doesn't linger in browser history.
+let hadHashToken = false;
 (function pickUpTokenFromHash() {
   const m = location.hash.match(/token=([^&]+)/);
   if (m && m[1]) {
@@ -358,6 +320,7 @@ document.getElementById('refreshBtn').addEventListener('click', refresh);
       const tok = decodeURIComponent(m[1]);
       localStorage.setItem('pulse_token', tok);
       history.replaceState(null, '', location.pathname + location.search);
+      hadHashToken = true;
     } catch (e) { /* ignore */ }
   }
 })();
@@ -365,8 +328,17 @@ document.getElementById('refreshBtn').addEventListener('click', refresh);
 const savedTarget = getTarget();
 if (savedTarget) document.getElementById('targetInput').value = savedTarget;
 
-refresh();
-setInterval(refresh, 60000);
+const savedManual = getManual();
+if (savedManual.net) document.getElementById('manualRevenueInput').value = Math.round(savedManual.net);
+
+if (hadHashToken) {
+  refreshAuto();
+} else {
+  renderFromManual();
+}
+// Keep the countdown (hours remaining / required rate) ticking even
+// without a new manual entry.
+setInterval(renderFromManual, 30000);
 </script>
 </body>
 </html>
