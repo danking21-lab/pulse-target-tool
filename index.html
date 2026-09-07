@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Slotomania Pulse Target</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px 16px 40px;
+    background: #0b0f14; color: #eef2f6;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, sans-serif;
+  }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; color: #9fb2c6; }
+  .sub { font-size: 12px; color: #6b7c8f; margin-bottom: 16px; }
+  .card {
+    background: #141b23; border: 1px solid #223041; border-radius: 16px;
+    padding: 16px; margin-bottom: 14px;
+  }
+  .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .label { font-size: 12px; color: #8a9bad; text-transform: uppercase; letter-spacing: .04em; }
+  .big { font-size: 34px; font-weight: 700; margin: 4px 0 0; }
+  .mid { font-size: 22px; font-weight: 700; }
+  .muted { color: #6b7c8f; font-size: 12px; }
+  .pill {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; margin-top: 6px;
+  }
+  .pill.on-pace { background: #143a2c; color: #4ade80; }
+  .pill.behind  { background: #3a1420; color: #fb7185; }
+  .pill.hit     { background: #143a2c; color: #4ade80; }
+  .pill.no-target { background: #2a2f38; color: #9fb2c6; }
+  .pill.expired { background: #3a2c14; color: #f5b942; }
+  input[type=number], input[type=password] {
+    width: 100%; font-size: 18px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid #2a3a4c; background: #0e141b; color: #eef2f6;
+  }
+  textarea {
+    width: 100%; font-size: 12px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid #2a3a4c; background: #0e141b; color: #eef2f6;
+    min-height: 70px; font-family: monospace;
+  }
+  .btnrow { display: flex; gap: 8px; margin-top: 10px; }
+  button {
+    flex: 1; font-size: 14px; font-weight: 600; padding: 10px 12px;
+    border-radius: 10px; border: none; cursor: pointer;
+  }
+  .btn-primary { background: #2563eb; color: white; }
+  .btn-ghost { background: #1c2733; color: #9fb2c6; }
+  .progress-wrap {
+    background: #0e141b; border-radius: 999px; height: 10px; overflow: hidden; margin-top: 10px;
+  }
+  .progress-bar { height: 100%; background: linear-gradient(90deg,#2563eb,#4ade80); }
+  a.pulse-link {
+    display: block; text-align: center; padding: 12px; border-radius: 12px;
+    background: #1c2733; color: #7cc4ff; text-decoration: none; font-weight: 600;
+    margin-bottom: 14px;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .err { color: #fb7185; font-size: 12px; margin-top: 8px; white-space: pre-wrap; }
+  .footer { text-align: center; color: #4d5c6d; font-size: 11px; margin-top: 20px; }
+  details summary { cursor: pointer; color: #7cc4ff; font-size: 13px; margin-bottom: 6px; }
+  label.small { font-size: 12px; color: #8a9bad; display: block; margin: 8px 0 4px; }
+</style>
+</head>
+<body>
+  <h1>Slotomania &middot; Live Pulse Target</h1>
+  <div class="sub" id="asof">loading&hellip;</div>
+
+  <a class="pulse-link" href="https://rapid.playtika.com/pulse/main" target="_blank" rel="noopener">
+    Open Live Pulse Dashboard &nearr;
+  </a>
+
+  <div class="card">
+    <div class="row">
+      <div class="label">Net revenue so far &middot; today (UTC)</div>
+      <span class="pill" id="statusPill">&nbsp;</span>
+    </div>
+    <div class="big" id="netSoFar">$&mdash;</div>
+    <div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+    <div class="muted" id="pctLine">&nbsp;</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Daily target</div>
+    <input type="number" inputmode="decimal" id="targetInput" placeholder="e.g. 600000">
+    <div class="btnrow">
+      <button class="btn-primary" id="saveTarget">Save target</button>
+      <button class="btn-ghost" id="refreshBtn">Refresh now</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="grid2">
+      <div>
+        <div class="label">Required $/hr to hit target</div>
+        <div class="mid" id="reqRate">$&mdash;</div>
+      </div>
+      <div>
+        <div class="label">Current pace $/hr</div>
+        <div class="mid" id="curRate">$&mdash;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="grid2">
+      <div>
+        <div class="label">Hours left today (UTC)</div>
+        <div class="mid" id="hoursLeft">&mdash;</div>
+      </div>
+      <div>
+        <div class="label">Projected total at current pace</div>
+        <div class="mid" id="projected">$&mdash;</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <details id="tokenBox">
+      <summary>Playtika session token (tap to update)</summary>
+      <label class="small">Paste a fresh Bearer token from DevTools → Network → dashboards_facade → Headers → Authorization (just the token, "Bearer " prefix optional). It expires roughly every 60&ndash;70 minutes.</label>
+      <textarea id="tokenInput" placeholder="eyJ0eXAiOiJKV1Qi..."></textarea>
+      <div class="btnrow"><button class="btn-primary" id="saveToken">Save token</button></div>
+    </details>
+  </div>
+
+  <div class="muted" id="windowLine">&nbsp;</div>
+  <div class="err" id="errLine"></div>
+  <div class="footer">Same data as the Pulse dashboard (net_revenue, today, UTC) &middot; pulled directly from api-rapid.playtika.com &middot; no server, no AI, pure math</div>
+
+<script>
+const API_URL = 'https://api-rapid.playtika.com/api/public/dashboards_facade';
+const GAME_ID = 4; // Slotomania
+
+const fmt = n => n === null || n === undefined || !isFinite(n) ? '&mdash;' :
+  '$' + Number(n).toLocaleString('en-US', {maximumFractionDigits: 0});
+
+function getToken() {
+  return (localStorage.getItem('pulse_token') || '').trim();
+}
+function getTarget() {
+  const v = localStorage.getItem('pulse_target');
+  return v ? Number(v) : 0;
+}
+
+function todayWindowUtc() {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
+  const end = new Date(start.getTime() + 24 * 3600 * 1000);
+  return { start, end, now };
+}
+
+async function fetchNetRevenueToday() {
+  const token = getToken();
+  if (!token) throw new Error('No token saved yet. Open "Playtika session token" below and paste one.');
+  const { start, now } = todayWindowUtc();
+  const body = {
+    queries: [{
+      metrics: ['net_revenue'],
+      timePeriod: ['today'],
+      startTimestamp: start.toISOString(),
+      endTimestamp: now.toISOString(),
+      platform: [], platformType: [], countryCode: [],
+      splitBy: ['game'], division: [], game: [GAME_ID],
+      aggregateBy: 300
+    }]
+  };
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json, text/plain, */*',
+      'authorization': 'Bearer ' + token.replace(/^Bearer\s+/i, ''),
+      'content-type': 'application/json;charset=UTF-8',
+    },
+    body: JSON.stringify(body)
+  });
+  if (res.status === 401 || res.status === 403) {
+    throw new Error('Token expired or invalid (HTTP ' + res.status + '). Paste a fresh one below.');
+  }
+  if (!res.ok) throw new Error('API error HTTP ' + res.status);
+  const data = await res.json();
+  const points = (data.result && data.result[0] && data.result[0].dataPoints) || [];
+  const net = points.reduce((s, p) => s + (p[1] || 0), 0);
+  return net;
+}
+
+function render(net) {
+  const { start, end, now } = todayWindowUtc();
+  const target = getTarget();
+
+  const hoursElapsed = Math.max((now - start) / 3600000, 0.0001);
+  const hoursRemaining = Math.max((end - now) / 3600000, 0);
+  const remaining = Math.max(target - net, 0);
+  const currentPace = net / hoursElapsed;
+  const requiredRate = hoursRemaining > 0.0001 ? remaining / hoursRemaining : null;
+  const projected = net + currentPace * hoursRemaining;
+  const pct = target > 0 ? (net / target * 100) : 0;
+
+  let status = 'no-target';
+  if (target <= 0) status = 'no-target';
+  else if (net >= target) status = 'hit';
+  else if (requiredRate !== null && requiredRate <= currentPace) status = 'on-pace';
+  else status = 'behind';
+
+  document.getElementById('netSoFar').innerHTML = fmt(net);
+  document.getElementById('reqRate').innerHTML = requiredRate === null ? 'day over' : fmt(requiredRate) + '/hr';
+  document.getElementById('curRate').innerHTML = fmt(currentPace) + '/hr';
+  document.getElementById('hoursLeft').textContent = hoursRemaining.toFixed(1) + 'h';
+  document.getElementById('projected').innerHTML = fmt(projected);
+
+  const pctClamped = Math.max(0, Math.min(100, pct));
+  document.getElementById('progressBar').style.width = pctClamped + '%';
+  document.getElementById('pctLine').textContent = target > 0
+      ? (pctClamped.toFixed(1) + '% of ' + fmt(target).replace(/&mdash;|\$/g, m => m === '$' ? '$' : '-') + ' target')
+      : 'No target set yet';
+
+  const pill = document.getElementById('statusPill');
+  let label = '';
+  if (status === 'no-target') label = 'SET A TARGET';
+  else if (status === 'hit') label = 'TARGET HIT';
+  else if (status === 'on-pace') label = 'ON PACE';
+  else if (status === 'behind') label = 'NEED TO PICK UP';
+  pill.textContent = label;
+  pill.className = 'pill ' + status;
+
+  document.getElementById('asof').textContent = 'as of ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone:'UTC'}) + ' UTC';
+  document.getElementById('windowLine').textContent =
+    'Calc day: ' + start.toLocaleString([], {weekday:'short', hour:'2-digit', minute:'2-digit', timeZone:'UTC'}) +
+    ' \u2192 ' + end.toLocaleString([], {weekday:'short', hour:'2-digit', minute:'2-digit', timeZone:'UTC'}) + ' UTC';
+
+  if (document.activeElement.id !== 'targetInput') {
+    document.getElementById('targetInput').value = target || '';
+  }
+}
+
+async function refresh() {
+  try {
+    const net = await fetchNetRevenueToday();
+    document.getElementById('errLine').textContent = '';
+    render(net);
+  } catch (e) {
+    document.getElementById('errLine').textContent = e.message;
+    const pill = document.getElementById('statusPill');
+    pill.textContent = 'NEEDS TOKEN';
+    pill.className = 'pill expired';
+    if (/token/i.test(e.message)) document.getElementById('tokenBox').open = true;
+  }
+}
+
+document.getElementById('saveTarget').addEventListener('click', () => {
+  const val = Number(document.getElementById('targetInput').value || 0);
+  localStorage.setItem('pulse_target', val);
+  refresh();
+});
+
+document.getElementById('saveToken').addEventListener('click', () => {
+  const val = document.getElementById('tokenInput').value.trim();
+  if (val) {
+    localStorage.setItem('pulse_token', val);
+    document.getElementById('tokenInput').value = '';
+    document.getElementById('tokenBox').open = false;
+    refresh();
+  }
+});
+
+document.getElementById('refreshBtn').addEventListener('click', refresh);
+
+const savedTarget = getTarget();
+if (savedTarget) document.getElementById('targetInput').value = savedTarget;
+
+refresh();
+setInterval(refresh, 60000);
+</script>
+</body>
+</html>
