@@ -74,24 +74,11 @@
     <div class="label" style="margin-bottom:8px;">Net revenue so far today ($)</div>
     <input type="number" inputmode="decimal" id="manualRevenueInput" placeholder="e.g. 650 &rarr; means 650,000">
     <div class="muted" style="margin-top:4px;">Enter in thousands &mdash; type <b>650</b> for $650,000.</div>
-    <div class="btnrow">
-      <button class="btn-primary" id="saveManualRevenue">Use this number</button>
-    </div>
     <div class="muted" id="manualAsOf" style="margin-top:6px;">&nbsp;</div>
   </div>
 
   <div class="card">
-    <div class="row">
-      <div class="label">Net revenue so far &middot; today (UTC)</div>
-      <span class="pill" id="statusPill">&nbsp;</span>
-    </div>
-    <div class="big" id="netSoFar">$&mdash;</div>
-    <div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
-    <div class="muted" id="pctLine">&nbsp;</div>
-  </div>
-
-  <div class="card">
-    <div class="label">Daily target</div>
+    <div class="label" style="margin-bottom:8px;">Daily target ($)</div>
     <input type="number" inputmode="decimal" id="targetInput" placeholder="e.g. 600 &rarr; means 600,000">
     <div class="muted" style="margin-top:4px;">Enter in thousands &mdash; type <b>600</b> for $600,000.</div>
     <div class="btnrow">
@@ -125,16 +112,6 @@
     </div>
   </div>
 
-  <div class="card">
-    <details id="tokenBox">
-      <summary>Advanced (optional): automatic pull instead of manual entry</summary>
-      <label class="small" style="margin-top:0;">Not required &mdash; the manual field above works on its own. This is only for anyone who wants the number to fill in by itself using a Playtika session token (expires every ~60&ndash;70 min, needs re-collecting each time).</label>
-      <label class="small">Paste a fresh Bearer token from DevTools → Network → dashboards_facade → Headers → Authorization:</label>
-      <textarea id="tokenInput" placeholder="eyJ0eXAiOiJKV1Qi..."></textarea>
-      <div class="btnrow"><button class="btn-primary" id="saveToken">Save token</button></div>
-    </details>
-  </div>
-
   <div class="muted" id="windowLine">&nbsp;</div>
   <div class="err" id="errLine"></div>
 
@@ -145,15 +122,9 @@
   <div class="footer">Same definition as the Pulse dashboard (net_revenue, today, UTC) &middot; no server, no AI, pure math</div>
 
 <script>
-const API_URL = 'https://api-rapid.playtika.com/api/public/dashboards_facade';
-const GAME_ID = 4; // Slotomania
-
 const fmt = n => n === null || n === undefined || !isFinite(n) ? '&mdash;' :
   '$' + Number(n).toLocaleString('en-US', {maximumFractionDigits: 0});
 
-function getToken() {
-  return (localStorage.getItem('pulse_token') || '').trim();
-}
 function getTarget() {
   const v = localStorage.getItem('pulse_target');
   return v ? Number(v) : 0;
@@ -173,40 +144,6 @@ function todayWindowUtc() {
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
   const end = new Date(start.getTime() + 24 * 3600 * 1000);
   return { start, end, now };
-}
-
-async function fetchNetRevenueToday() {
-  const token = getToken();
-  if (!token) throw new Error('No token saved yet. Open "Playtika session token" below and paste one.');
-  const { start, now } = todayWindowUtc();
-  const body = {
-    queries: [{
-      metrics: ['net_revenue'],
-      timePeriod: ['today'],
-      startTimestamp: start.toISOString(),
-      endTimestamp: now.toISOString(),
-      platform: [], platformType: [], countryCode: [],
-      splitBy: ['game'], division: [], game: [GAME_ID],
-      aggregateBy: 300
-    }]
-  };
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: {
-      'accept': 'application/json, text/plain, */*',
-      'authorization': 'Bearer ' + token.replace(/^Bearer\s+/i, ''),
-      'content-type': 'application/json;charset=UTF-8',
-    },
-    body: JSON.stringify(body)
-  });
-  if (res.status === 401 || res.status === 403) {
-    throw new Error('Token expired or invalid (HTTP ' + res.status + '). Paste a fresh one below.');
-  }
-  if (!res.ok) throw new Error('API error HTTP ' + res.status);
-  const data = await res.json();
-  const points = (data.result && data.result[0] && data.result[0].dataPoints) || [];
-  const net = points.reduce((s, p) => s + (p[1] || 0), 0);
-  return net;
 }
 
 function render(net, asOfDate) {
@@ -232,26 +169,12 @@ function render(net, asOfDate) {
   else if (requiredRate !== null && requiredRate <= currentPace) status = 'on-pace';
   else status = 'behind';
 
-  document.getElementById('netSoFar').innerHTML = fmt(net);
   document.getElementById('reqRate').innerHTML = requiredRate === null ? 'day over' : fmt(requiredRate) + '/hr';
   document.getElementById('curRate').innerHTML = fmt(currentPace) + '/hr';
   document.getElementById('hoursLeft').textContent = hoursRemaining.toFixed(1) + 'h';
   document.getElementById('projected').innerHTML = fmt(projected);
 
-  const pctClamped = Math.max(0, Math.min(100, pct));
-  document.getElementById('progressBar').style.width = pctClamped + '%';
-  document.getElementById('pctLine').textContent = target > 0
-      ? (pctClamped.toFixed(1) + '% of ' + fmt(target).replace(/&mdash;|\$/g, m => m === '$' ? '$' : '-') + ' target')
-      : 'No target set yet';
-
-  const pill = document.getElementById('statusPill');
-  let label = '';
-  if (status === 'no-target') label = 'SET A TARGET';
-  else if (status === 'hit') label = 'TARGET HIT';
-  else if (status === 'on-pace') label = 'ON PACE';
-  else if (status === 'behind') label = 'NEED TO PICK UP';
-  pill.textContent = label;
-  pill.className = 'pill ' + status;
+  void status; // (progress pill/bar removed; status kept for future use)
 
   document.getElementById('asof').textContent = 'calc as of ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone:'UTC'}) + ' UTC \u00b7 revenue as of ' + asOf.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone:'UTC'}) + ' UTC';
   const staleMin = Math.round((now - asOf) / 60000);
@@ -276,64 +199,27 @@ function renderFromManual() {
   render(net, ts ? new Date(ts) : new Date());
 }
 
-// Optional automatic path (advanced / experimental) -- only used if the
-// user explicitly pastes/collects a token. Off by default.
-async function refreshAuto() {
-  try {
-    const net = await fetchNetRevenueToday();
-    document.getElementById('errLine').textContent = '';
-    saveManual(net); // treat a successful auto-fetch as if it were a manual entry, "now"
-    render(net, new Date());
-  } catch (e) {
-    document.getElementById('errLine').textContent = e.message;
-    if (/token/i.test(e.message)) document.getElementById('tokenBox').open = true;
-  }
-}
-
 const THOUSANDS = 1000; // user types "650" meaning $650,000
 
-document.getElementById('saveTarget').addEventListener('click', () => {
-  const val = Number(document.getElementById('targetInput').value || 0) * THOUSANDS;
-  localStorage.setItem('pulse_target', val);
-  renderFromManual();
-});
-
-document.getElementById('saveManualRevenue').addEventListener('click', () => {
+// Revenue input updates live as you type -- no button needed.
+document.getElementById('manualRevenueInput').addEventListener('input', () => {
   const val = Number(document.getElementById('manualRevenueInput').value || 0) * THOUSANDS;
   saveManual(val);
   renderFromManual();
 });
 
-document.getElementById('saveToken').addEventListener('click', () => {
-  const val = document.getElementById('tokenInput').value.trim();
-  if (val) {
-    localStorage.setItem('pulse_token', val);
-    document.getElementById('tokenInput').value = '';
-    document.getElementById('tokenBox').open = false;
-    refreshAuto();
-  }
+// Save target reads BOTH numbers currently in the two fields (revenue +
+// target) and renders using both, so it works even if revenue was typed
+// but the page hasn't re-rendered from the 'input' listener yet.
+document.getElementById('saveTarget').addEventListener('click', () => {
+  const targetVal = Number(document.getElementById('targetInput').value || 0) * THOUSANDS;
+  const netVal = Number(document.getElementById('manualRevenueInput').value || 0) * THOUSANDS;
+  localStorage.setItem('pulse_target', targetVal);
+  saveManual(netVal);
+  renderFromManual();
 });
 
-// If a bookmarklet opened us with #token=..., grab it, save it, and
-// clean the URL bar so the token doesn't linger in browser history.
-let hadHashToken = false;
-(function pickUpTokenFromHash() {
-  const m = location.hash.match(/token=([^&]+)/);
-  if (m && m[1]) {
-    try {
-      const tok = decodeURIComponent(m[1]);
-      localStorage.setItem('pulse_token', tok);
-      history.replaceState(null, '', location.pathname + location.search);
-      hadHashToken = true;
-    } catch (e) { /* ignore */ }
-  }
-})();
-
-if (hadHashToken) {
-  refreshAuto();
-} else {
-  renderFromManual();
-}
+renderFromManual();
 // Keep the countdown (hours remaining / required rate) ticking even
 // without a new manual entry.
 setInterval(renderFromManual, 30000);
