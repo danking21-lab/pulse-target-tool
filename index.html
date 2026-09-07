@@ -70,12 +70,8 @@
   <h1>Slotomania &middot; Live Pulse Target</h1>
   <div class="sub" id="asof">loading&hellip;</div>
 
-  <a class="pulse-link" href="https://rapid.playtika.com/pulse/main" target="_blank" rel="noopener" id="pulseOpenLink">
-    Step 1: Open Live Pulse Dashboard in a new tab &nearr;
-  </a>
-
   <div class="card">
-    <div class="label" style="margin-bottom:8px;">Step 2: net revenue so far today ($) &mdash; copy from the Pulse tab</div>
+    <div class="label" style="margin-bottom:8px;">Net revenue so far today ($)</div>
     <input type="number" inputmode="decimal" id="manualRevenueInput" placeholder="e.g. 650 &rarr; means 650,000">
     <div class="muted" style="margin-top:4px;">Enter in thousands &mdash; type <b>650</b> for $650,000.</div>
     <div class="btnrow">
@@ -141,7 +137,12 @@
 
   <div class="muted" id="windowLine">&nbsp;</div>
   <div class="err" id="errLine"></div>
-  <div class="footer">Same data as the Pulse dashboard (net_revenue, today, UTC) &middot; pulled directly from api-rapid.playtika.com &middot; no server, no AI, pure math</div>
+
+  <a class="pulse-link" href="https://rapid.playtika.com/pulse/main" target="_blank" rel="noopener" style="margin-top:6px;">
+    Open the real Pulse dashboard &nearr;
+  </a>
+
+  <div class="footer">Same definition as the Pulse dashboard (net_revenue, today, UTC) &middot; no server, no AI, pure math</div>
 
 <script>
 const API_URL = 'https://api-rapid.playtika.com/api/public/dashboards_facade';
