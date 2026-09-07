@@ -128,6 +128,26 @@
     </details>
   </div>
 
+  <div class="card">
+    <details>
+      <summary>One-click token refresh (bookmarklet)</summary>
+      <label class="small">
+        Install once: drag the button below to your bookmarks bar (desktop),
+        or on mobile: bookmark any page, edit that bookmark, and paste the
+        code from the box into its URL field instead. Then, whenever your
+        token expires: open <code>rapid.playtika.com/pulse/main</code>,
+        make sure you're logged in and it's showing live data, tap the
+        bookmarklet &mdash; it grabs your current session token and opens
+        this tool with fresh data, no DevTools needed.
+      </label>
+      <p style="text-align:center">
+        <a id="bookmarkletLink" href="#" style="display:inline-block;padding:10px 16px;background:#2563eb;color:#fff;border-radius:10px;font-weight:600;text-decoration:none;">Get Pulse Token</a>
+      </p>
+      <label class="small">Or copy this code (for mobile bookmark editing):</label>
+      <textarea id="bookmarkletCode" readonly onclick="this.select()"></textarea>
+    </details>
+  </div>
+
   <div class="muted" id="windowLine">&nbsp;</div>
   <div class="err" id="errLine"></div>
   <div class="footer">Same data as the Pulse dashboard (net_revenue, today, UTC) &middot; pulled directly from api-rapid.playtika.com &middot; no server, no AI, pure math</div>
@@ -268,6 +288,69 @@ document.getElementById('saveToken').addEventListener('click', () => {
 });
 
 document.getElementById('refreshBtn').addEventListener('click', refresh);
+
+// Build the bookmarklet: when clicked while on rapid.playtika.com, it scans
+// localStorage/sessionStorage for the MSAL access token cache entry, picks
+// the newest AccessToken (preferring our known client id), and opens this
+// tool with #token=... so the page above auto-saves it. No DevTools needed.
+(function buildBookmarklet() {
+  const toolUrl = location.origin + location.pathname;
+  const KNOWN_CLIENT_ID = '8e416d24-af97-4350-948b-664b88ec082c';
+  const fn = function () {
+    try {
+      var stores = [window.localStorage, window.sessionStorage];
+      var candidates = [];
+      for (var s = 0; s < stores.length; s++) {
+        var store = stores[s];
+        if (!store) continue;
+        for (var i = 0; i < store.length; i++) {
+          var key = store.key(i);
+          var raw = store.getItem(key);
+          if (!raw || raw.indexOf('AccessToken') === -1) continue;
+          try {
+            var obj = JSON.parse(raw);
+            if (obj && obj.credentialType === 'AccessToken' && obj.secret) {
+              candidates.push(obj);
+            }
+          } catch (e) {}
+        }
+      }
+      if (!candidates.length) {
+        alert('No Playtika access token found on this page. Make sure you are logged in at rapid.playtika.com/pulse/main and the dashboard is showing live data, then try again.');
+        return;
+      }
+      candidates.sort(function (a, b) {
+        var pref = function (c) { return c.clientId === __CLIENT_ID__ ? 1 : 0; };
+        var pd = pref(b) - pref(a);
+        if (pd !== 0) return pd;
+        return (Number(b.expiresOn) || 0) - (Number(a.expiresOn) || 0);
+      });
+      var token = candidates[0].secret;
+      window.open(__TOOL_URL__ + '#token=' + encodeURIComponent(token), '_blank');
+    } catch (e) {
+      alert('Bookmarklet error: ' + e.message);
+    }
+  };
+  const code = fn.toString()
+    .replace('__CLIENT_ID__', JSON.stringify(KNOWN_CLIENT_ID))
+    .replace('__TOOL_URL__', JSON.stringify(toolUrl));
+  const bookmarklet = 'javascript:(' + code + ')();';
+  document.getElementById('bookmarkletLink').setAttribute('href', bookmarklet);
+  document.getElementById('bookmarkletCode').value = bookmarklet;
+})();
+
+// If a bookmarklet opened us with #token=..., grab it, save it, and
+// clean the URL bar so the token doesn't linger in browser history.
+(function pickUpTokenFromHash() {
+  const m = location.hash.match(/token=([^&]+)/);
+  if (m && m[1]) {
+    try {
+      const tok = decodeURIComponent(m[1]);
+      localStorage.setItem('pulse_token', tok);
+      history.replaceState(null, '', location.pathname + location.search);
+    } catch (e) { /* ignore */ }
+  }
+})();
 
 const savedTarget = getTarget();
 if (savedTarget) document.getElementById('targetInput').value = savedTarget;
