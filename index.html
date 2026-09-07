@@ -76,7 +76,8 @@
 
   <div class="card">
     <div class="label" style="margin-bottom:8px;">Step 2: net revenue so far today ($) &mdash; copy from the Pulse tab</div>
-    <input type="number" inputmode="decimal" id="manualRevenueInput" placeholder="e.g. 482000">
+    <input type="number" inputmode="decimal" id="manualRevenueInput" placeholder="e.g. 650 &rarr; means 650,000">
+    <div class="muted" style="margin-top:4px;">Enter in thousands &mdash; type <b>650</b> for $650,000.</div>
     <div class="btnrow">
       <button class="btn-primary" id="saveManualRevenue">Use this number</button>
     </div>
@@ -95,10 +96,10 @@
 
   <div class="card">
     <div class="label">Daily target</div>
-    <input type="number" inputmode="decimal" id="targetInput" placeholder="e.g. 600000">
+    <input type="number" inputmode="decimal" id="targetInput" placeholder="e.g. 600 &rarr; means 600,000">
+    <div class="muted" style="margin-top:4px;">Enter in thousands &mdash; type <b>600</b> for $600,000.</div>
     <div class="btnrow">
       <button class="btn-primary" id="saveTarget">Save target</button>
-      <button class="btn-ghost" id="refreshBtn">Refresh now</button>
     </div>
   </div>
 
@@ -261,7 +262,10 @@ function render(net, asOfDate) {
     ' \u2192 ' + end.toLocaleString([], {weekday:'short', hour:'2-digit', minute:'2-digit', timeZone:'UTC'}) + ' UTC';
 
   if (document.activeElement.id !== 'targetInput') {
-    document.getElementById('targetInput').value = target || '';
+    document.getElementById('targetInput').value = target ? (target / 1000) : '';
+  }
+  if (document.activeElement.id !== 'manualRevenueInput') {
+    document.getElementById('manualRevenueInput').value = net ? Math.round(net / 1000) : '';
   }
 }
 
@@ -278,7 +282,6 @@ async function refreshAuto() {
     const net = await fetchNetRevenueToday();
     document.getElementById('errLine').textContent = '';
     saveManual(net); // treat a successful auto-fetch as if it were a manual entry, "now"
-    document.getElementById('manualRevenueInput').value = Math.round(net);
     render(net, new Date());
   } catch (e) {
     document.getElementById('errLine').textContent = e.message;
@@ -286,14 +289,16 @@ async function refreshAuto() {
   }
 }
 
+const THOUSANDS = 1000; // user types "650" meaning $650,000
+
 document.getElementById('saveTarget').addEventListener('click', () => {
-  const val = Number(document.getElementById('targetInput').value || 0);
+  const val = Number(document.getElementById('targetInput').value || 0) * THOUSANDS;
   localStorage.setItem('pulse_target', val);
   renderFromManual();
 });
 
 document.getElementById('saveManualRevenue').addEventListener('click', () => {
-  const val = Number(document.getElementById('manualRevenueInput').value || 0);
+  const val = Number(document.getElementById('manualRevenueInput').value || 0) * THOUSANDS;
   saveManual(val);
   renderFromManual();
 });
@@ -307,8 +312,6 @@ document.getElementById('saveToken').addEventListener('click', () => {
     refreshAuto();
   }
 });
-
-document.getElementById('refreshBtn').addEventListener('click', refreshAuto);
 
 // If a bookmarklet opened us with #token=..., grab it, save it, and
 // clean the URL bar so the token doesn't linger in browser history.
@@ -324,12 +327,6 @@ let hadHashToken = false;
     } catch (e) { /* ignore */ }
   }
 })();
-
-const savedTarget = getTarget();
-if (savedTarget) document.getElementById('targetInput').value = savedTarget;
-
-const savedManual = getManual();
-if (savedManual.net) document.getElementById('manualRevenueInput').value = Math.round(savedManual.net);
 
 if (hadHashToken) {
   refreshAuto();
